@@ -1,0 +1,186 @@
+﻿FUNCTION_BLOCK "FB_MULTI_LOGGER"
+{ S7_Optimized_Access := 'TRUE' }
+VERSION : 0.1
+   VAR_INPUT 
+      i_bTreatedInputSignal : Bool;
+      i_iDataLoggerFunction : Int;
+   END_VAR
+
+   VAR 
+      ls_rtrigSignal {InstructionName := 'R_TRIG'; LibVersion := '1.0'; S7_SetPoint := 'False'} : R_TRIG;
+      ls_rtrigClock {InstructionName := 'R_TRIG'; LibVersion := '1.0'} : R_TRIG;
+      ls_ftrigSignal {InstructionName := 'F_TRIG'; LibVersion := '1.0'; S7_SetPoint := 'False'} : F_TRIG;
+      ls_udiCounter { S7_SetPoint := 'True'} : UDInt;
+      ls_udiSecondsCounter : USInt;
+      ls_udiMinutesCounter : UDInt;
+      ls_bCaptureFlag : Bool;
+      ls_iStep : USInt;
+   END_VAR
+
+
+BEGIN
+	
+	
+	
+	REGION Mirror the Input Signal to the Rising and Falling Functions
+	    #ls_rtrigSignal.CLK := #ls_ftrigSignal.CLK := #i_bTreatedInputSignal;
+	END_REGION
+	
+	REGION Call Functions
+	    #ls_rtrigSignal(CLK := #ls_rtrigSignal.CLK,
+	                    Q => #ls_rtrigSignal.Q);
+	    #ls_rtrigClock(CLK := "Clock_1Hz",
+	                   Q => #ls_rtrigClock.Q);
+	    #ls_ftrigSignal(CLK := #ls_ftrigSignal.CLK,
+	                    Q => #ls_ftrigSignal.Q);
+	END_REGION
+	
+	REGION Chooses the Data Logger Function
+	    CASE #i_iDataLoggerFunction OF
+	        1: 
+	            REGION Signal Rising Counter
+	                IF #ls_rtrigSignal.Q THEN
+	                    #ls_udiCounter += 1;
+	                END_IF;
+	            END_REGION
+	        2: 
+	            REGION Signal Falling Counter
+	                IF #ls_ftrigSignal.Q THEN
+	                    #ls_udiCounter += 1;
+	                END_IF;
+	            END_REGION
+	        3: 
+	            REGION Signal Rising and Falling Counter
+	                IF #ls_rtrigSignal.Q OR
+	                    #ls_ftrigSignal.Q THEN
+	                    #ls_udiCounter += 1;
+	                END_IF;
+	            END_REGION
+	        4: 
+	            REGION Time Between Signal Rising and Falling (Signal Duration)
+	                CASE #ls_iStep OF
+	                    0:
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                    1:
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 2;
+	                        END_IF;
+	                        IF #ls_rtrigClock.Q AND
+	                            NOT #ls_ftrigSignal.Q THEN
+	                            IF #ls_udiSecondsCounter >= 60 THEN
+	                                #ls_udiSecondsCounter := 1;
+	                                #ls_udiMinutesCounter += 1;
+	                            END_IF;
+	                            #ls_udiSecondsCounter += 1;
+	                        END_IF;
+	                    2:
+	                        #ls_bCaptureFlag := TRUE;
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_udiSecondsCounter := 0;
+	                            #ls_udiMinutesCounter := 0;
+	                            #ls_bCaptureFlag := FALSE;
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                END_CASE;
+	            END_REGION
+	        5: 
+	            REGION Time Between Signal Falling and Rising (Signal Interval)
+	                CASE #ls_iStep OF
+	                    0:
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                    1:
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 2;
+	                        END_IF;
+	                        IF #ls_rtrigClock.Q AND
+	                            NOT #ls_rtrigSignal.Q THEN
+	                            IF #ls_udiSecondsCounter >= 60 THEN
+	                                #ls_udiSecondsCounter := 1;
+	                                #ls_udiMinutesCounter += 1;
+	                            END_IF;
+	                            #ls_udiSecondsCounter += 1;
+	                        END_IF;
+	                    2:
+	                        #ls_bCaptureFlag := TRUE;
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_udiSecondsCounter := 0;
+	                            #ls_udiMinutesCounter := 0;
+	                            #ls_bCaptureFlag := FALSE;
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                END_CASE;
+	            END_REGION
+	        6: 
+	            REGION Cumulative Time Between Signal Rising and Falling (Total Signal Duration)
+	                CASE #ls_iStep OF
+	                    0:
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                    1:
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 2;
+	                        END_IF;
+	                        IF #ls_rtrigClock.Q AND
+	                            NOT #ls_ftrigSignal.Q THEN
+	                            IF #ls_udiSecondsCounter >= 60 THEN
+	                                #ls_udiSecondsCounter := 1;
+	                                #ls_udiMinutesCounter += 1;
+	                            END_IF;
+	                            #ls_udiSecondsCounter += 1;
+	                        END_IF;
+	                    2:
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                END_CASE;
+	            END_REGION
+	        7: 
+	            REGION Cumulative Time Between Signal Falling and Rising (Signal Interval)   
+	                CASE #ls_iStep OF
+	                    0:
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                    1:
+	                        IF (#ls_rtrigSignal.Q AND
+	                            NOT #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 2;
+	                        END_IF;
+	                        IF #ls_rtrigClock.Q AND
+	                            NOT #ls_rtrigSignal.Q THEN
+	                            IF #ls_udiSecondsCounter >= 60 THEN
+	                                #ls_udiSecondsCounter := 1;
+	                                #ls_udiMinutesCounter += 1;
+	                            END_IF;
+	                            #ls_udiSecondsCounter += 1;
+	                        END_IF;
+	                    2:
+	                        IF (NOT #ls_rtrigSignal.Q AND
+	                            #ls_ftrigSignal.Q) THEN
+	                            #ls_iStep := 1;
+	                        END_IF;
+	                END_CASE;
+	            END_REGION
+	    END_CASE;
+	
+	    
+	END_REGION
+	
+	
+END_FUNCTION_BLOCK
+
