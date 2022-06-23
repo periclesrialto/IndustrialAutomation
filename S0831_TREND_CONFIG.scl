@@ -60,7 +60,7 @@ VERSION : 0.1
 
 BEGIN
 	REGION MONTA O ARRAY DE TREND (10pts --> 12pts)
-	    //Agora a NASA vem
+	    //TESTE TESTE TESTE
 	    //O gatilho para execução do sistema de trend é a variável #ls_iStep1 passar para zero
 	    IF #ls_iStep1 = 0 THEN
 	        //Reseta ponto de corte igual e ponto de aromatização igual
